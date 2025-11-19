@@ -11,6 +11,11 @@ from megasdkrestclient import MegaSdkRestClient, errors as mega_err
 import subprocess
 import redis
 
+import asyncio
+import nest_asyncio
+nest_asyncio.apply()
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 socket.setdefaulttimeout(600)
 
 botStartTime = time.time()
