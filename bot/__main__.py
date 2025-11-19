@@ -2,6 +2,9 @@ import shutil, psutil
 import signal
 import pickle
 
+from aiohttp import web
+import asyncio
+
 from os import execl, path, remove
 from sys import executable
 import time
@@ -14,6 +17,18 @@ from bot.helper.telegram_helper.message_utils import *
 from .helper.ext_utils.bot_utils import get_readable_file_size, get_readable_time
 from .helper.telegram_helper.filters import CustomFilters
 from .modules import authorize, list, cancel_mirror, mirror_status, mirror, clone, watch
+
+async def koyeb_healthcheck(request):
+    return web.Response(text="OK", status=200)
+
+async def run_health_server():
+    app = web.Application()
+    app.router.add_get("/", koyeb_healthcheck)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    await site.start()
+    print("Koyeb healthcheck running on port 8080")
 
 
 @run_async
@@ -99,6 +114,7 @@ def bot_help(update, context):
 
 def main():
     fs_utils.start_cleanup()
+
     # Check if the bot is restarting
     if path.exists('restart.pickle'):
         with open('restart.pickle', 'rb') as status:
@@ -117,15 +133,25 @@ def main():
     stats_handler = CommandHandler(BotCommands.StatsCommand,
                                    stats, filters=CustomFilters.authorized_chat | CustomFilters.authorized_user)
     log_handler = CommandHandler(BotCommands.LogCommand, log, filters=CustomFilters.owner_filter)
+
     dispatcher.add_handler(start_handler)
     dispatcher.add_handler(ping_handler)
     dispatcher.add_handler(restart_handler)
     dispatcher.add_handler(help_handler)
     dispatcher.add_handler(stats_handler)
     dispatcher.add_handler(log_handler)
+
+    # Start Telegram bot in background thread
     updater.start_polling()
     LOGGER.info("Bot Started!")
+
     signal.signal(signal.SIGINT, fs_utils.exit_clean_up)
+
+    # Start aiohttp health server
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run_health_server())
+    loop.run_forever()
+
 
 
 main()
